@@ -1,5 +1,5 @@
 .build/
-*.app
+# *.app  # tracked for direct download
 .DS_Store
 cf-browser-info/node_modules/
 cf-browser-info/.wrangler/
