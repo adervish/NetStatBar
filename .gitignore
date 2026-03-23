@@ -1,0 +1,5 @@
+.build/
+*.app
+.DS_Store
+cf-browser-info/node_modules/
+cf-browser-info/.wrangler/
