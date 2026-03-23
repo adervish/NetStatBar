@@ -4,7 +4,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let monitor = NetworkMonitor.shared
 
-    private enum Tag: Int { case ip = 1, isp, latency, loss }
+    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory }
+
+    private let pingThreshold: Double = 100 // ms — above this shows red
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -40,6 +42,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         details.target = self
         menu.addItem(details)
 
+        let historyItem = NSMenuItem(title: "Last 10 Pings", action: nil, keyEquivalent: "")
+        historyItem.tag = Tag.pingHistory.rawValue
+        historyItem.submenu = NSMenu()
+        menu.addItem(historyItem)
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit NetStatBar",
                                 action: #selector(NSApplication.terminate(_:)),
@@ -52,6 +59,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.item(withTag: Tag.ip.rawValue)?.title  = "IP:       fetching…"
         menu.item(withTag: Tag.isp.rawValue)?.title = "ISP:     fetching…"
         monitor.fetchNetworkInfo()
+        refreshPingHistory()
+    }
+
+    private func refreshPingHistory() {
+        guard let historyItem = statusItem.menu?.item(withTag: Tag.pingHistory.rawValue) else { return }
+        let sub = NSMenu()
+
+        // Graph item
+        let graphView = PingGraphView(frame: NSRect(x: 0, y: 0, width: 280, height: 70))
+        graphView.pings = monitor.pings
+        graphView.threshold = pingThreshold
+        let graphItem = NSMenuItem()
+        graphItem.view = graphView
+        sub.addItem(graphItem)
+
+        sub.addItem(.separator())
+
+        // Text list — bold = inside 10s window, red = above threshold or timeout
+        let all = monitor.pings.reversed()
+        if all.isEmpty {
+            sub.addItem(NSMenuItem(title: "No data yet", action: nil, keyEquivalent: ""))
+        } else {
+            let recentSet = Set(monitor.recentPings.map { $0.timestamp })
+            for ping in all {
+                let inWindow = recentSet.contains(ping.timestamp)
+                let weight: NSFont.Weight = inWindow ? .bold : .regular
+                let item = NSMenuItem()
+                item.action = nil
+                if let ms = ping.latency {
+                    let text = String(format: "%.0f ms", ms)
+                    var attrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: weight)
+                    ]
+                    if ms > pingThreshold { attrs[.foregroundColor] = NSColor.systemRed }
+                    item.attributedTitle = NSAttributedString(string: text, attributes: attrs)
+                } else {
+                    item.attributedTitle = NSAttributedString(string: "✕ timeout", attributes: [
+                        .foregroundColor: NSColor.systemRed,
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: weight)
+                    ])
+                }
+                sub.addItem(item)
+            }
+        }
+        historyItem.submenu = sub
     }
 
     private func tagged(_ title: String, tag: Tag) -> NSMenuItem {

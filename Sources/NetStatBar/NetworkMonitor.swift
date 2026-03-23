@@ -68,11 +68,15 @@ class NetworkMonitor {
     private func record(_ latency: Double?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let cutoff = Date().addingTimeInterval(-10)
-            pings.removeAll { $0.timestamp < cutoff }
             pings.append(PingResult(timestamp: Date(), latency: latency))
+            if pings.count > 100 { pings.removeFirst(pings.count - 100) }
             onChange?()
         }
+    }
+
+    var recentPings: [PingResult] {
+        let cutoff = Date().addingTimeInterval(-10)
+        return pings.filter { $0.timestamp >= cutoff }
     }
 
     // MARK: – Network info
@@ -95,11 +99,12 @@ class NetworkMonitor {
 
     // MARK: – Stats
 
-    /// 0.0 = bad (red)  →  1.0 = good (green)
+    /// 0.0 = bad (red)  →  1.0 = good (green) — based on last 10 seconds
     var quality: Double {
-        guard !pings.isEmpty else { return 1.0 }
-        let lossRate  = Double(pings.filter { $0.latency == nil }.count) / Double(pings.count)
-        let latencies = pings.compactMap { $0.latency }
+        let recent = recentPings
+        guard !recent.isEmpty else { return 1.0 }
+        let lossRate  = Double(recent.filter { $0.latency == nil }.count) / Double(recent.count)
+        let latencies = recent.compactMap { $0.latency }
         let avg       = latencies.isEmpty ? 300.0 : latencies.reduce(0, +) / Double(latencies.count)
         let latScore  = max(0.0, 1.0 - avg / 300.0)
         let lossScore = max(0.0, 1.0 - lossRate / 0.5)
@@ -107,14 +112,15 @@ class NetworkMonitor {
     }
 
     var avgLatencyString: String {
-        let l = pings.compactMap { $0.latency }
+        let l = recentPings.compactMap { $0.latency }
         guard !l.isEmpty else { return "—" }
         return String(format: "%.0f ms", l.reduce(0, +) / Double(l.count))
     }
 
     var packetLossString: String {
-        guard !pings.isEmpty else { return "—" }
-        let pct = Double(pings.filter { $0.latency == nil }.count) / Double(pings.count) * 100
+        let recent = recentPings
+        guard !recent.isEmpty else { return "—" }
+        let pct = Double(recent.filter { $0.latency == nil }.count) / Double(recent.count) * 100
         return String(format: "%.0f%%", pct)
     }
 }
