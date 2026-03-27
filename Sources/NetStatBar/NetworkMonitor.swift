@@ -36,8 +36,10 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
     private(set) var wifiChannelBand: String = "—"
     private(set) var wifiChannelWidth: String = "—"
 
-    // Active WiFi interface discovered via NWPathMonitor
+    // Active interface tracking via NWPathMonitor
     private var activeWiFiInterface: String = "en0"
+    private var activeInterface: String = "en0"   // primary interface (wifi or ethernet)
+    private(set) var isOnWifi: Bool = true
     private var pathMonitor: NWPathMonitor?
 
     var onChange: (() -> Void)?
@@ -200,9 +202,13 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
     private func startPathMonitor() {
         pathMonitor = NWPathMonitor()
         pathMonitor?.pathUpdateHandler = { [weak self] path in
+            let onWifi    = path.usesInterfaceType(.wifi)
             let wifiIface = path.availableInterfaces.first { $0.type == .wifi }
+            let primary   = path.availableInterfaces.first { $0.type != .loopback && $0.type != .other }
             DispatchQueue.main.async {
+                self?.isOnWifi            = onWifi
                 self?.activeWiFiInterface = wifiIface?.name ?? "en0"
+                self?.activeInterface     = primary?.name ?? wifiIface?.name ?? "en0"
             }
         }
         pathMonitor?.start(queue: DispatchQueue.global(qos: .utility))
@@ -235,7 +241,18 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
     }
 
     private func readWiFiInfo() {
-        privateIP = localIPForInterface(activeWiFiInterface)
+        privateIP = localIPForInterface(activeInterface)
+
+        guard isOnWifi else {
+            wifiSSID         = "N/A"
+            wifiBSSID        = "N/A"
+            wifiRSSI         = 0
+            wifiChannel      = 0
+            wifiChannelBand  = "N/A"
+            wifiChannelWidth = "N/A"
+            return
+        }
+
         let iface = CWWiFiClient.shared().interface(withName: activeWiFiInterface)
         wifiSSID  = iface?.ssid() ?? "—"
         wifiBSSID = iface?.bssid() ?? "—"
@@ -257,8 +274,8 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
             default:           wifiChannelWidth = "—"
             }
         } else {
-            wifiChannel = 0
-            wifiChannelBand = "—"
+            wifiChannel      = 0
+            wifiChannelBand  = "—"
             wifiChannelWidth = "—"
         }
     }

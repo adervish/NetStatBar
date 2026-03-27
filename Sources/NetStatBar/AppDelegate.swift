@@ -43,8 +43,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let rssi    = monitor.wifiRSSI
         let channel = monitor.wifiChannel
 
-        let rssiStr = rssi != 0 ? "\(rssi) dBm" : "—"
-        let chStr   = channel > 0
+        let rssiStr = !monitor.isOnWifi ? "N/A" : rssi != 0 ? "\(rssi) dBm" : "—"
+        let chStr   = !monitor.isOnWifi ? "N/A" : channel > 0
             ? "\(channel)  \(monitor.wifiChannelBand)  \(monitor.wifiChannelWidth)"
             : "—"
 
