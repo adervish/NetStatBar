@@ -4,7 +4,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let monitor = NetworkMonitor.shared
 
-    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory, wifiSSID, wifiRSSI, wifiChannel }
+    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory, wifiSSID, wifiBSSID, wifiRSSI, wifiChannel }
 
     private let pingThreshold: Double = 100 // ms — above this shows red
 
@@ -34,7 +34,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ? "\(channel)  \(monitor.wifiChannelBand)  \(monitor.wifiChannelWidth)"
             : "—"
 
-        menu.item(withTag: Tag.wifiSSID.rawValue)?.title   = "SSID:    \(monitor.wifiSSID)"
+        menu.item(withTag: Tag.wifiSSID.rawValue)?.title    = "SSID:    \(monitor.wifiSSID)"
+        menu.item(withTag: Tag.wifiBSSID.rawValue)?.title   = "BSSID:   \(monitor.wifiBSSID)"
         menu.item(withTag: Tag.wifiRSSI.rawValue)?.title   = "RSSI:    \(rssiStr)"
         menu.item(withTag: Tag.wifiChannel.rawValue)?.title = "Channel: \(chStr)"
     }
@@ -55,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         wifiHeader.isEnabled = false
         menu.addItem(wifiHeader)
         menu.addItem(tagged("SSID:    —",  tag: .wifiSSID))
+        menu.addItem(tagged("BSSID:   —",  tag: .wifiBSSID))
         menu.addItem(tagged("RSSI:    —",  tag: .wifiRSSI))
         menu.addItem(tagged("Channel: —",  tag: .wifiChannel))
 

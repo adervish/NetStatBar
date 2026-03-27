@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import CoreWLAN
 import Network
 import SQLite3
@@ -12,24 +13,26 @@ struct PingResult {
     let latency: Double?   // ms; nil = timeout / unreachable
 }
 
-class NetworkMonitor {
+class NetworkMonitor: NSObject, CLLocationManagerDelegate {
     static let shared = NetworkMonitor()
-    private init() {}
+    private override init() { super.init() }
+
+    private var locationManager: CLLocationManager?
 
     private(set) var pings: [PingResult] = []
     private(set) var publicIP: String = "—"
     private(set) var isp: String = "—"
 
-    // WiFi — RSSI/channel updated every second; SSID updated every 60s
+    // WiFi — SSID/BSSID via CoreWLAN (requires wifi-info entitlement)
+    // RSSI/channel updated every second; SSID/BSSID updated every second too
     private(set) var wifiSSID: String = "—"
-    private(set) var wifiBSSID: String = "—"   // requires entitlement; "—" until resolved
+    private(set) var wifiBSSID: String = "—"
     private(set) var wifiRSSI: Int = 0
     private(set) var wifiChannel: Int = 0
     private(set) var wifiChannelBand: String = "—"
     private(set) var wifiChannelWidth: String = "—"
 
-    // The WiFi interface that is currently routing traffic to the internet,
-    // discovered via NWPathMonitor so we don't hardcode "en0".
+    // Active WiFi interface discovered via NWPathMonitor
     private var activeWiFiInterface: String = "en0"
     private var pathMonitor: NWPathMonitor?
 
@@ -37,6 +40,9 @@ class NetworkMonitor {
 
     private var pingTimer: Timer?
     private var infoTimer: Timer?
+
+    // Dedicated serial queue for all ping NWConnections
+    private let pingQueue = DispatchQueue(label: "com.netstatbar.ping", qos: .utility)
 
     // MARK: – SQLite
 
@@ -71,7 +77,7 @@ class NetworkMonitor {
                 )
                 """
             sqlite3_exec(self.db, create, nil, nil, nil)
-            // Migration: add ssid column to existing databases
+            // Migration: add ssid column to databases created before v1.2
             sqlite3_exec(self.db, "ALTER TABLE measurements ADD COLUMN ssid TEXT", nil, nil, nil)
         }
 
@@ -120,6 +126,7 @@ class NetworkMonitor {
     func start() {
         openDatabase()
         startPathMonitor()
+        requestLocationPermission()
         doPing()
         fetchNetworkInfo()
         pingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -130,9 +137,23 @@ class NetworkMonitor {
         }
     }
 
+    // MARK: – Location permission
+    // On macOS, granting location access unlocks CoreWLAN SSID/BSSID.
+    // The permission prompt appears once; the system remembers the choice.
+
+    private func requestLocationPermission() {
+        locationManager = CLLocationManager()
+        locationManager?.delegate = self
+        locationManager?.requestWhenInUseAuthorization()
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        // Re-read WiFi info now that permission status has changed
+        readWiFiInfo()
+        onChange?()
+    }
+
     // MARK: – Path monitoring
-    // Watches which interface is actually routing traffic so we read WiFi info
-    // from the correct adapter rather than hardcoding "en0".
 
     private func startPathMonitor() {
         pathMonitor = NWPathMonitor()
@@ -149,7 +170,8 @@ class NetworkMonitor {
 
     private func readWiFiInfo() {
         let iface = CWWiFiClient.shared().interface(withName: activeWiFiInterface)
-        wifiBSSID = iface?.bssid() ?? "—"   // "—" until wifi-info entitlement is resolved
+        wifiSSID  = iface?.ssid() ?? "—"
+        wifiBSSID = iface?.bssid() ?? "—"
         wifiRSSI  = iface?.rssiValue() ?? 0
 
         if let ch = iface?.wlanChannel() {
@@ -174,67 +196,44 @@ class NetworkMonitor {
         }
     }
 
-    // SSID is not available from CoreWLAN without the wifi-info entitlement,
-    // so we parse it from system_profiler on the same 60s cadence as IP/ISP.
-    func fetchSSID() {
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/system_profiler")
-            process.arguments = ["SPAirPortDataType", "-xml"]
-            let stdout = Pipe()
-            process.standardOutput = stdout
-            process.standardError  = Pipe()
-            do { try process.run() } catch { return }
-            process.waitUntilExit()
-
-            let data = stdout.fileHandleForReading.readDataToEndOfFile()
-            guard
-                let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
-                    as? [[String: Any]],
-                let items      = plist.first?["_items"] as? [[String: Any]],
-                let interfaces = items.first?["spairport_airport_interfaces"] as? [[String: Any]],
-                let current    = interfaces.first?["spairport_current_network_information"]
-                    as? [String: Any],
-                let ssid       = current["_name"] as? String, !ssid.isEmpty
-            else { return }
-
-            DispatchQueue.main.async {
-                self?.wifiSSID = ssid
-                self?.onChange?()
-            }
-        }
-    }
-
     // MARK: – Ping
+    // Uses a TCP connection to 1.1.1.1:80 instead of ICMP so it works inside
+    // the App Sandbox (raw sockets are not permitted in sandboxed apps).
+    // TCP round-trip to a nearby CDN edge is a reliable latency proxy.
 
     private func doPing() {
         readWiFiInfo()   // main thread — safe for CoreWLAN
 
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/sbin/ping")
-            process.arguments = ["-c", "1", "-t", "2", "1.1.1.1"]
+        let connection = NWConnection(host: "1.1.1.1", port: 80, using: .tcp)
+        let start = Date()
+        var done = false   // guarded by pingQueue (serial)
 
-            let stdout = Pipe()
-            process.standardOutput = stdout
-            process.standardError  = Pipe()
-
-            do { try process.run() } catch { self?.record(nil); return }
-            process.waitUntilExit()
-
-            let output = String(
-                data: stdout.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? ""
-
-            var latency: Double? = nil
-            let pattern = #"time[<=](\d+\.?\d*)\s*ms"#
-            if let re = try? NSRegularExpression(pattern: pattern),
-               let m  = re.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
-               let r  = Range(m.range(at: 1), in: output) {
-                latency = Double(String(output[r]))
+        connection.stateUpdateHandler = { [weak self] state in
+            self?.pingQueue.async {
+                guard !done else { return }
+                switch state {
+                case .ready:
+                    done = true
+                    connection.cancel()
+                    self?.record(Date().timeIntervalSince(start) * 1000)
+                case .failed:
+                    done = true
+                    connection.cancel()
+                    self?.record(nil)
+                default:
+                    break
+                }
             }
-            self?.record(latency)
+        }
+
+        connection.start(queue: pingQueue)
+
+        // 2-second timeout
+        pingQueue.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard !done else { return }
+            done = true
+            connection.cancel()
+            self?.record(nil)
         }
     }
 
@@ -256,7 +255,6 @@ class NetworkMonitor {
     // MARK: – Network info
 
     func fetchNetworkInfo() {
-        fetchSSID()
         guard let url = URL(string: workerURL + "?json") else { return }
         URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
             guard let data,
