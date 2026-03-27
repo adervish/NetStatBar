@@ -18,6 +18,7 @@ mkdir -p "$APP/Contents/Resources"
 
 cp ".build/release/$BINARY" "$APP/Contents/MacOS/"
 cp "Info.plist"              "$APP/Contents/"
+cp "AppIcon.icns"            "$APP/Contents/Resources/"
 
 # Embed provisioning profile
 if [ -f "$PROFILE" ]; then
