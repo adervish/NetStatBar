@@ -101,30 +101,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         sub.addItem(.separator())
 
-        // Text list — bold = inside 10s window, red = above threshold or timeout
+        // Text list — time · latency · BSSID · channel
+        // Bold = inside 10s window, red = above threshold or timeout
         let all = monitor.pings.reversed()
         if all.isEmpty {
             sub.addItem(NSMenuItem(title: "No data yet", action: nil, keyEquivalent: ""))
         } else {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "HH:mm:ss"
             let recentSet = Set(monitor.recentPings.map { $0.timestamp })
             for ping in all {
                 let inWindow = recentSet.contains(ping.timestamp)
                 let weight: NSFont.Weight = inWindow ? .bold : .regular
+                let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: weight)
+                let time = fmt.string(from: ping.timestamp)
+                let chStr = ping.channel > 0 ? "Ch\(ping.channel) \(ping.channelBand)" : "—"
+                let bssid = ping.bssid
+
+                let latencyPart: String
+                let isTimeout: Bool
+                if let ms = ping.latency {
+                    latencyPart = String(format: "%5.0f ms", ms)
+                    isTimeout = false
+                } else {
+                    latencyPart = "timeout "
+                    isTimeout = true
+                }
+
+                let text = "\(time)  \(latencyPart)  \(bssid)  \(chStr)"
+                var attrs: [NSAttributedString.Key: Any] = [.font: font]
+                if isTimeout || (ping.latency ?? 0) > pingThreshold {
+                    attrs[.foregroundColor] = NSColor.systemRed
+                }
                 let item = NSMenuItem()
                 item.action = nil
-                if let ms = ping.latency {
-                    let text = String(format: "%.0f ms", ms)
-                    var attrs: [NSAttributedString.Key: Any] = [
-                        .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: weight)
-                    ]
-                    if ms > pingThreshold { attrs[.foregroundColor] = NSColor.systemRed }
-                    item.attributedTitle = NSAttributedString(string: text, attributes: attrs)
-                } else {
-                    item.attributedTitle = NSAttributedString(string: "✕ timeout", attributes: [
-                        .foregroundColor: NSColor.systemRed,
-                        .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: weight)
-                    ])
-                }
+                item.attributedTitle = NSAttributedString(string: text, attributes: attrs)
                 sub.addItem(item)
             }
         }

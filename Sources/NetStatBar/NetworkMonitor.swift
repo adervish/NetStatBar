@@ -11,6 +11,9 @@ let workerURL = "https://browser-info.acd.workers.dev"
 struct PingResult {
     let timestamp: Date
     let latency: Double?   // ms; nil = timeout / unreachable
+    let bssid: String
+    let channel: Int
+    let channelBand: String
 }
 
 class NetworkMonitor: NSObject, CLLocationManagerDelegate {
@@ -240,7 +243,13 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
     private func record(_ latency: Double?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            pings.append(PingResult(timestamp: Date(), latency: latency))
+            pings.append(PingResult(
+                timestamp: Date(),
+                latency: latency,
+                bssid: wifiBSSID,
+                channel: wifiChannel,
+                channelBand: wifiChannelBand
+            ))
             if pings.count > 100 { pings.removeFirst(pings.count - 100) }
             insertMeasurement(latency: latency)
             onChange?()
