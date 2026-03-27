@@ -1,35 +1,38 @@
-# NetStatBar
+# WiFi Scout
 
-macOS menu bar app that monitors your internet connection in real time.
+macOS menu bar app that monitors your Wi-Fi and internet connection in real time.
 
-- **Color-coded icon** — green → yellow → red based on ping quality over the last 10 seconds
-- **Click the icon** to see your public IP, ISP, latency, and packet loss (fetched live)
-- **View Full Details** — opens full network info JSON in your browser
+- **Color-coded dot** — green → yellow → red based on latency and packet loss
+- **Public & private IP**, ISP, latency, and packet loss at a glance
+- **Wi-Fi details** — SSID, BSSID, RSSI, channel, band, and channel width
+- **Ping history** — graph and timestamped log; BSSID changes highlighted in bold to catch roaming events
+- **Ethernet aware** — shows N/A for Wi-Fi fields when connected via wired interface
+- **Local SQLite database** — every measurement logged; export to TSV for analysis in Excel or Numbers
+- **Preferences** — configurable ping target, interval, and database size limit
 
 ## Install
 
-1. Download **[NetStatBar.zip](https://github.com/adervish/NetStatBar/raw/main/NetStatBar.zip)**
-2. Unzip it
-3. Drag `NetStatBar.app` to your `/Applications` folder
-4. Double-click to launch
+1. Download **[NetStatBar.zip](https://github.com/adervish/NetStatBar/releases/latest/download/NetStatBar.zip)**
+2. Unzip and drag `NetStatBar.app` to your `/Applications` folder
+3. Double-click to launch
 
-> **First launch only:** macOS will warn the app is from an unidentified developer.
-> Right-click (or ctrl-click) `NetStatBar.app` and choose **Open**, then click **Open** again.
+The app has no dock icon — look for the colored dot in your menu bar.
 
-The app has no dock icon — look for the colored circle in your menu bar.
+**First launch:** grant Location permission when prompted. This is required by macOS to read the BSSID of your access point.
 
 ## Build from source
 
-Requires macOS 12+ and Swift.
+Requires macOS 13+ and Swift.
 
 ```bash
 git clone https://github.com/adervish/NetStatBar.git
 cd NetStatBar
-./build.sh
-open NetStatBar.app
+./build.sh          # dev build for local testing
+./build.sh github   # Developer ID build + notarization
+./build.sh appstore # App Store distribution build
 ```
 
 ## Requirements
 
-- macOS 12 or later
-- The Cloudflare Worker (in `cf-browser-info/`) must be deployed for IP/ISP lookup
+- macOS 13 or later
+- The Cloudflare Worker (in `cf-browser-info/`) must be deployed for public IP/ISP lookup
