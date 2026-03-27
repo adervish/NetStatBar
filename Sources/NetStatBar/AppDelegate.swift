@@ -4,7 +4,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let monitor = NetworkMonitor.shared
 
-    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory }
+    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory, wifiSSID, wifiRSSI, wifiChannel }
 
     private let pingThreshold: Double = 100 // ms — above this shows red
 
@@ -25,6 +25,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.item(withTag: Tag.isp.rawValue)?.title     = "ISP:     \(monitor.isp)"
         menu.item(withTag: Tag.latency.rawValue)?.title = "Latency: \(monitor.avgLatencyString)"
         menu.item(withTag: Tag.loss.rawValue)?.title    = "Loss:    \(monitor.packetLossString)"
+
+        let rssi    = monitor.wifiRSSI
+        let channel = monitor.wifiChannel
+
+        let rssiStr = rssi != 0 ? "\(rssi) dBm" : "—"
+        let chStr   = channel > 0
+            ? "\(channel)  \(monitor.wifiChannelBand)  \(monitor.wifiChannelWidth)"
+            : "—"
+
+        menu.item(withTag: Tag.wifiSSID.rawValue)?.title   = "SSID:    \(monitor.wifiSSID)"
+        menu.item(withTag: Tag.wifiRSSI.rawValue)?.title   = "RSSI:    \(rssiStr)"
+        menu.item(withTag: Tag.wifiChannel.rawValue)?.title = "Channel: \(chStr)"
     }
 
     // MARK: – Menu
@@ -32,10 +44,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buildMenu() {
         let menu = NSMenu()
 
-        menu.addItem(tagged("IP:       —",        tag: .ip))
-        menu.addItem(tagged("ISP:     —",         tag: .isp))
-        menu.addItem(tagged("Latency: —",         tag: .latency))
-        menu.addItem(tagged("Loss:    —",         tag: .loss))
+        menu.addItem(tagged("IP:       —", tag: .ip))
+        menu.addItem(tagged("ISP:     —",  tag: .isp))
+        menu.addItem(tagged("Latency: —",  tag: .latency))
+        menu.addItem(tagged("Loss:    —",  tag: .loss))
+
+        menu.addItem(.separator())
+
+        let wifiHeader = NSMenuItem(title: "Wi-Fi", action: nil, keyEquivalent: "")
+        wifiHeader.isEnabled = false
+        menu.addItem(wifiHeader)
+        menu.addItem(tagged("SSID:    —",  tag: .wifiSSID))
+        menu.addItem(tagged("RSSI:    —",  tag: .wifiRSSI))
+        menu.addItem(tagged("Channel: —",  tag: .wifiChannel))
+
         menu.addItem(.separator())
 
         let details = NSMenuItem(title: "View Full Details…", action: #selector(openDetails), keyEquivalent: "")
@@ -56,8 +78,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        menu.item(withTag: Tag.ip.rawValue)?.title  = "IP:       fetching…"
-        menu.item(withTag: Tag.isp.rawValue)?.title = "ISP:     fetching…"
+        menu.item(withTag: Tag.ip.rawValue)?.title   = "IP:       fetching…"
+        menu.item(withTag: Tag.isp.rawValue)?.title  = "ISP:     fetching…"
+        menu.item(withTag: Tag.wifiSSID.rawValue)?.title = "SSID:    fetching…"
         monitor.fetchNetworkInfo()
         refreshPingHistory()
     }

@@ -7,7 +7,11 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "NetStatBar",
-            path: "Sources/NetStatBar"
+            path: "Sources/NetStatBar",
+            exclude: ["NetStatBar.entitlements"],
+            linkerSettings: [
+                .linkedLibrary("sqlite3")
+            ]
         )
     ]
 )
