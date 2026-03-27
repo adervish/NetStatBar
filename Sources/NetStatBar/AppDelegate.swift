@@ -168,12 +168,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func exportData() {
         let tsv = monitor.exportTSV()
+        let rowCount = tsv.components(separatedBy: "\n").count - 1  // subtract header
+
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(tsv, forType: .tabularText)
+        NSPasteboard.general.writeObjects([tsv as NSString])
 
         let alert = NSAlert()
         alert.messageText = "Data copied to clipboard"
-        alert.informativeText = "Paste into Excel, Numbers, or any spreadsheet app."
+        alert.informativeText = "\(rowCount) rows — paste into Excel, Numbers, or any spreadsheet app."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.runModal()
