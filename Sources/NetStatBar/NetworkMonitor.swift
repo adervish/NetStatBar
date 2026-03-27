@@ -279,6 +279,50 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
         }.resume()
     }
 
+    // MARK: – Export
+
+    func exportTSV() -> String {
+        let header = "timestamp\tlatency_ms\tssid\tbssid\trssi\tchannel\tchannel_band\tchannel_width\tpublic_ip\tisp"
+        var rows = [header]
+
+        dbQueue.sync {
+            guard let db else { return }
+            let sql = "SELECT timestamp, latency_ms, ssid, bssid, rssi, channel, channel_band, channel_width, public_ip, isp FROM measurements ORDER BY timestamp"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+            defer { sqlite3_finalize(stmt) }
+
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                let ts      = sqlite3_column_double(stmt, 0)
+                let latency = sqlite3_column_type(stmt, 1) == SQLITE_NULL ? "" : String(sqlite3_column_double(stmt, 1))
+                let ssid    = String(cString: sqlite3_column_text(stmt, 2) ?? UnsafePointer(bitPattern: 0)!)
+                let bssid   = String(cString: sqlite3_column_text(stmt, 3) ?? UnsafePointer(bitPattern: 0)!)
+                let rssi    = String(sqlite3_column_int(stmt, 4))
+                let channel = String(sqlite3_column_int(stmt, 5))
+                let band    = String(cString: sqlite3_column_text(stmt, 6) ?? UnsafePointer(bitPattern: 0)!)
+                let width   = String(cString: sqlite3_column_text(stmt, 7) ?? UnsafePointer(bitPattern: 0)!)
+                let ip      = String(cString: sqlite3_column_text(stmt, 8) ?? UnsafePointer(bitPattern: 0)!)
+                let isp     = String(cString: sqlite3_column_text(stmt, 9) ?? UnsafePointer(bitPattern: 0)!)
+
+                let date = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: ts))
+                rows.append("\(date)\t\(latency)\t\(ssid)\t\(bssid)\t\(rssi)\t\(channel)\t\(band)\t\(width)\t\(ip)\t\(isp)")
+            }
+        }
+
+        return rows.joined(separator: "\n")
+    }
+
+    func resetDatabase() {
+        dbQueue.sync {
+            guard let db else { return }
+            sqlite3_exec(db, "DELETE FROM measurements", nil, nil, nil)
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.pings.removeAll()
+            self?.onChange?()
+        }
+    }
+
     // MARK: – Stats
 
     var quality: Double {

@@ -66,6 +66,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         details.target = self
         menu.addItem(details)
 
+        let export = NSMenuItem(title: "Export Data…", action: #selector(exportData), keyEquivalent: "")
+        export.target = self
+        menu.addItem(export)
+
+        let reset = NSMenuItem(title: "Reset DB…", action: #selector(resetDB), keyEquivalent: "")
+        reset.target = self
+        menu.addItem(reset)
+
         let historyItem = NSMenuItem(title: "Last 10 Pings", action: nil, keyEquivalent: "")
         historyItem.tag = Tag.pingHistory.rawValue
         historyItem.submenu = NSMenu()
@@ -110,13 +118,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm:ss"
             let recentSet = Set(monitor.recentPings.map { $0.timestamp })
-            for ping in all {
+            let allArray = Array(all)
+            for (i, ping) in allArray.enumerated() {
                 let inWindow = recentSet.contains(ping.timestamp)
                 let weight: NSFont.Weight = inWindow ? .bold : .regular
-                let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: weight)
                 let time = fmt.string(from: ping.timestamp)
                 let chStr = ping.channel > 0 ? "Ch\(ping.channel) \(ping.channelBand)" : "—"
                 let bssid = ping.bssid
+
+                // Bold BSSID if it differs from the previous (older) ping — indicates a roam
+                let prevBSSID = i + 1 < allArray.count ? allArray[i + 1].bssid : bssid
+                let roamed = bssid != prevBSSID && prevBSSID != "—"
 
                 let latencyPart: String
                 let isTimeout: Bool
@@ -128,14 +140,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     isTimeout = true
                 }
 
-                let text = "\(time)  \(latencyPart)  \(bssid)  \(chStr)"
-                var attrs: [NSAttributedString.Key: Any] = [.font: font]
-                if isTimeout || (ping.latency ?? 0) > pingThreshold {
-                    attrs[.foregroundColor] = NSColor.systemRed
-                }
+                let color: NSColor = (isTimeout || (ping.latency ?? 0) > pingThreshold)
+                    ? .systemRed : .labelColor
+                let boldFont   = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold)
+                let normalFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: weight)
+                let bssidFont  = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: roamed ? .bold : weight)
+
+                let str = NSMutableAttributedString()
+                str.append(NSAttributedString(string: "\(time)  ", attributes: [.font: normalFont, .foregroundColor: color]))
+                str.append(NSAttributedString(string: "\(latencyPart)", attributes: [.font: boldFont, .foregroundColor: color]))
+                str.append(NSAttributedString(string: "  \(bssid)  \(chStr)", attributes: [.font: bssidFont, .foregroundColor: color]))
+
                 let item = NSMenuItem()
                 item.action = nil
-                item.attributedTitle = NSAttributedString(string: text, attributes: attrs)
+                item.attributedTitle = str
                 sub.addItem(item)
             }
         }
@@ -146,6 +164,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.tag = tag.rawValue
         return item
+    }
+
+    @objc private func exportData() {
+        let tsv = monitor.exportTSV()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(tsv, forType: .tabularText)
+
+        let alert = NSAlert()
+        alert.messageText = "Data copied to clipboard"
+        alert.informativeText = "Paste into Excel, Numbers, or any spreadsheet app."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    @objc private func resetDB() {
+        let alert = NSAlert()
+        alert.messageText = "Reset database?"
+        alert.informativeText = "This will permanently delete all recorded measurements."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        monitor.resetDatabase()
     }
 
     @objc private func openDetails() {
