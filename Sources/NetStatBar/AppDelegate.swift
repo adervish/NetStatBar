@@ -4,7 +4,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let monitor = NetworkMonitor.shared
 
-    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory, wifiSSID, wifiBSSID, wifiRSSI, wifiChannel }
+    private enum Tag: Int { case ip = 1, isp, latency, loss, pingHistory, wifiSSID, wifiBSSID, wifiRSSI, wifiChannel, privateIP }
 
     private let pingThreshold: Double = 100 // ms — above this shows red
 
@@ -14,6 +14,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refresh()
         monitor.onChange = { [weak self] in self?.refresh() }
         monitor.start()
+        applyMenuBarVisibility()
+    }
+
+    // Called when user clicks the Dock icon (only visible when menu bar icon is hidden)
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        PreferencesWindowController.shared.open()
+        return true
+    }
+
+    func applyMenuBarVisibility() {
+        let show = UserDefaults.standard.object(forKey: "showInMenuBar") as? Bool ?? true
+        statusItem.isVisible = show
+        NSApp.setActivationPolicy(show ? .accessory : .regular)
     }
 
     // MARK: – Refresh
@@ -21,10 +34,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refresh() {
         statusItem.button?.image = statusIcon(quality: monitor.quality)
         guard let menu = statusItem.menu else { return }
-        menu.item(withTag: Tag.ip.rawValue)?.title      = "IP:       \(monitor.publicIP)"
-        menu.item(withTag: Tag.isp.rawValue)?.title     = "ISP:     \(monitor.isp)"
-        menu.item(withTag: Tag.latency.rawValue)?.title = "Latency: \(monitor.avgLatencyString)"
-        menu.item(withTag: Tag.loss.rawValue)?.title    = "Loss:    \(monitor.packetLossString)"
+        menu.item(withTag: Tag.ip.rawValue)?.title        = "Public IP:  \(monitor.publicIP)"
+        menu.item(withTag: Tag.privateIP.rawValue)?.title = "Private IP: \(monitor.privateIP)"
+        menu.item(withTag: Tag.isp.rawValue)?.title       = "ISP:        \(monitor.isp)"
+        menu.item(withTag: Tag.latency.rawValue)?.title   = "Latency:    \(monitor.avgLatencyString)"
+        menu.item(withTag: Tag.loss.rawValue)?.title      = "Loss:       \(monitor.packetLossString)"
 
         let rssi    = monitor.wifiRSSI
         let channel = monitor.wifiChannel
@@ -45,10 +59,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buildMenu() {
         let menu = NSMenu()
 
-        menu.addItem(tagged("IP:       —", tag: .ip))
-        menu.addItem(tagged("ISP:     —",  tag: .isp))
-        menu.addItem(tagged("Latency: —",  tag: .latency))
-        menu.addItem(tagged("Loss:    —",  tag: .loss))
+        menu.addItem(tagged("Public IP:  —", tag: .ip))
+        menu.addItem(tagged("Private IP: —", tag: .privateIP))
+        menu.addItem(tagged("ISP:        —", tag: .isp))
+        menu.addItem(tagged("Latency:    —", tag: .latency))
+        menu.addItem(tagged("Loss:       —", tag: .loss))
 
         menu.addItem(.separator())
 
@@ -62,7 +77,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let details = NSMenuItem(title: "View Full Details…", action: #selector(openDetails), keyEquivalent: "")
+        let prefs = NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
+        prefs.target = self
+        menu.addItem(prefs)
+
+        let details = NSMenuItem(title: "View ISP Details…", action: #selector(openDetails), keyEquivalent: "")
         details.target = self
         menu.addItem(details)
 
@@ -74,13 +93,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         reset.target = self
         menu.addItem(reset)
 
-        let historyItem = NSMenuItem(title: "Last 10 Pings", action: nil, keyEquivalent: "")
+        let historyItem = NSMenuItem(title: "History", action: nil, keyEquivalent: "")
         historyItem.tag = Tag.pingHistory.rawValue
         historyItem.submenu = NSMenu()
         menu.addItem(historyItem)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit NetStatBar",
+        menu.addItem(NSMenuItem(title: "Quit WiFi Scout",
                                 action: #selector(NSApplication.terminate(_:)),
                                 keyEquivalent: "q"))
         menu.delegate = self
@@ -88,8 +107,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        menu.item(withTag: Tag.ip.rawValue)?.title   = "IP:       fetching…"
-        menu.item(withTag: Tag.isp.rawValue)?.title  = "ISP:     fetching…"
+        menu.item(withTag: Tag.ip.rawValue)?.title   = "Public IP:  fetching…"
+        menu.item(withTag: Tag.isp.rawValue)?.title  = "ISP:        fetching…"
         menu.item(withTag: Tag.wifiSSID.rawValue)?.title = "SSID:    fetching…"
         monitor.fetchNetworkInfo()
         refreshPingHistory()
@@ -167,18 +186,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func exportData() {
-        let tsv = monitor.exportTSV()
-        let rowCount = tsv.components(separatedBy: "\n").count - 1  // subtract header
+        // Ask how many rows to export
+        let alert = NSAlert()
+        alert.messageText = "Export Data"
+        alert.informativeText = "How many of the most recent pings to export?"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Export")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        field.stringValue = "1000"
+        field.placeholderString = "1000"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let limit = Int(field.stringValue.trimmingCharacters(in: .whitespaces))
+
+        let tsv = monitor.exportTSV(limit: limit)
+        let rowCount = tsv.components(separatedBy: "\n").count - 1
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([tsv as NSString])
 
-        let alert = NSAlert()
-        alert.messageText = "Data copied to clipboard"
-        alert.informativeText = "\(rowCount) rows — paste into Excel, Numbers, or any spreadsheet app."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        let done = NSAlert()
+        done.messageText = "Data copied to clipboard"
+        done.informativeText = "\(rowCount) rows — paste into Excel, Numbers, or any spreadsheet app."
+        done.alertStyle = .informational
+        done.addButton(withTitle: "OK")
+        done.runModal()
     }
 
     @objc private func resetDB() {
@@ -190,6 +227,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         monitor.resetDatabase()
+    }
+
+    @objc private func openPreferences() {
+        PreferencesWindowController.shared.open()
     }
 
     @objc private func openDetails() {

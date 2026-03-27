@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Scout – Know Your Network</title>
+<meta name="description" content="WiFi Scout monitors your Wi-Fi performance in real time from your Mac menu bar. Track latency, packet loss, BSSID roaming, and channel changes.">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #070e24;
+    color: #e8edf8;
+    line-height: 1.7;
+  }
+  a { color: #5ba4f5; text-decoration: none; }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(160deg, #0d1f52 0%, #102060 50%, #0a1840 100%);
+    text-align: center;
+    padding: 80px 24px 72px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 60%, rgba(59,130,246,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero img {
+    width: 100px; height: 100px;
+    border-radius: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 5vw, 3.4rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    line-height: 1.15;
+  }
+  .hero h1 span { color: #5ba4f5; }
+  .hero p {
+    font-size: 1.2rem;
+    color: #8fabd4;
+    max-width: 560px;
+    margin: 0 auto 36px;
+  }
+  .badge {
+    display: inline-block;
+  }
+  .badge img { height: 52px; }
+
+  /* ── Sections ── */
+  section { padding: 72px 24px; }
+  .section-inner { max-width: 900px; margin: 0 auto; }
+
+  .section-label {
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 0.75rem;
+    color: #5ba4f5;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 16px;
+    line-height: 1.25;
+  }
+  .lead { font-size: 1.1rem; color: #8fabd4; max-width: 620px; }
+
+  /* ── Feature grid ── */
+  .features {
+    background: #0b1530;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 24px;
+    margin-top: 48px;
+  }
+  .feature-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 28px;
+    transition: border-color 0.2s;
+  }
+  .feature-card:hover { border-color: rgba(91,164,245,0.35); }
+  .feature-icon {
+    font-size: 2rem;
+    margin-bottom: 14px;
+    display: block;
+  }
+  .feature-card h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .feature-card p { color: #8fabd4; font-size: 0.95rem; line-height: 1.6; }
+
+  /* ── Roaming section ── */
+  .roaming { background: #070e24; }
+  .roaming .section-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  @media (max-width: 680px) {
+    .roaming .section-inner { grid-template-columns: 1fr; gap: 32px; }
+  }
+  .ping-demo {
+    background: #0e1e45;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 20px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.82rem;
+  }
+  .ping-demo .row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .ping-demo .row:last-child { border-bottom: none; }
+  .ping-demo .time { color: #6b8ab0; min-width: 70px; }
+  .ping-demo .ms { color: #fff; font-weight: 700; min-width: 62px; }
+  .ping-demo .ms.red { color: #f87171; }
+  .ping-demo .ms.timeout { color: #f87171; }
+  .ping-demo .bssid { color: #6b8ab0; }
+  .ping-demo .bssid.roam { color: #fbbf24; font-weight: 700; }
+  .ping-demo .ch { color: #6b8ab0; }
+  .ping-demo .header-row { color: #4a6080; font-size: 0.75rem; padding-bottom: 8px; }
+
+  /* ── Who it's for ── */
+  .audience { background: #0b1530; border-top: 1px solid rgba(255,255,255,0.06); }
+  .audience-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 48px;
+  }
+  .audience-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+  }
+  .audience-card .icon { font-size: 2.2rem; margin-bottom: 12px; }
+  .audience-card h3 { font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 6px; }
+  .audience-card p { color: #6b8ab0; font-size: 0.88rem; line-height: 1.5; }
+
+  /* ── Privacy ── */
+  .privacy { background: #070e24; }
+  .privacy-points {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 36px;
+  }
+  .privacy-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .privacy-point .check {
+    color: #34d399;
+    font-size: 1.1rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  .privacy-point p { color: #8fabd4; font-size: 0.95rem; }
+
+  /* ── CTA ── */
+  .cta {
+    background: linear-gradient(160deg, #0d1f52 0%, #1a3a8f 100%);
+    text-align: center;
+    padding: 80px 24px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .cta h2 { margin-bottom: 16px; }
+  .cta p { color: #8fabd4; font-size: 1.05rem; margin-bottom: 36px; }
+  .cta .badge img { height: 56px; }
+
+  footer {
+    text-align: center;
+    padding: 32px 24px;
+    color: #2e4060;
+    font-size: 0.85rem;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  footer a { color: #3d5a80; }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+  <h1>Is your Wi-Fi<br><span>actually working?</span></h1>
+  <p>WiFi Scout tracks latency, packet loss, and access point roaming in real time — right from your Mac menu bar.</p>
+  <a class="badge" href="#"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-mac-app-store.svg" alt="Download on the Mac App Store"></a>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="section-inner">
+    <div class="section-label">Features</div>
+    <h2>Everything you need to understand your network</h2>
+    <p class="lead">One click reveals the full picture — no Terminal, no third-party tools, no guesswork.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="feature-icon">📶</span>
+        <h3>Real-time signal quality</h3>
+        <p>A color-coded dot in your menu bar reflects connection health at a glance. Green, yellow, or red — you always know.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">⏱</span>
+        <h3>Per-second latency tracking</h3>
+        <p>Measures round-trip time to Cloudflare's 1.1.1.1 server every second and surfaces the average and packet loss rate instantly.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📍</span>
+        <h3>Access point identification</h3>
+        <p>See the BSSID, SSID, RSSI signal strength, channel number, band, and channel width of your current access point.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔀</span>
+        <h3>Roaming detection</h3>
+        <p>BSSID changes are highlighted in bold in the ping history so you can instantly spot when your Mac switches access points.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🗄</span>
+        <h3>Local database logging</h3>
+        <p>Every measurement is stored in a private SQLite database on your Mac. No cloud, no account, no subscription.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <h3>One-click export</h3>
+        <p>Export your full history as a tab-separated file and paste directly into Excel, Numbers, or Google Sheets.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Roaming explainer -->
+<section class="roaming">
+  <div class="section-inner">
+    <div>
+      <div class="section-label">Roaming Detection</div>
+      <h2>Know the moment your Mac switches access points</h2>
+      <p style="color:#8fabd4; margin-bottom:16px;">In a home or office with multiple access points, your Mac decides when to roam — and it doesn't always choose well. A roam during a video call causes a freeze. A roam during a VPN session drops the connection.</p>
+      <p style="color:#8fabd4;">WiFi Scout shows you the exact timestamp and latency reading for every access point handoff, so you can correlate the roam with the problem and fix the root cause — whether that's repositioning a router, adjusting transmit power, or upgrading your network.</p>
+    </div>
+    <div class="ping-demo">
+      <div class="row header-row">
+        <span class="time">time</span>
+        <span class="ms">latency</span>
+        <span class="bssid">bssid</span>
+        <span class="ch">ch</span>
+      </div>
+      <div class="row">
+        <span class="time">14:22:01</span>
+        <span class="ms">12 ms</span>
+        <span class="bssid">a4:3e:51:…:1c</span>
+        <span class="ch">Ch36 5G</span>
+      </div>
+      <div class="row">
+        <span class="time">14:22:02</span>
+        <span class="ms">11 ms</span>
+        <span class="bssid">a4:3e:51:…:1c</span>
+        <span class="ch">Ch36 5G</span>
+      </div>
+      <div class="row">
+        <span class="time">14:22:03</span>
+        <span class="ms red">340 ms</span>
+        <span class="bssid roam">b8:27:eb:…:f2</span>
+        <span class="ch">Ch6 2.4G</span>
+      </div>
+      <div class="row">
+        <span class="time">14:22:04</span>
+        <span class="ms timeout">timeout</span>
+        <span class="bssid roam">b8:27:eb:…:f2</span>
+        <span class="ch">Ch6 2.4G</span>
+      </div>
+      <div class="row">
+        <span class="time">14:22:05</span>
+        <span class="ms red">280 ms</span>
+        <span class="bssid roam">b8:27:eb:…:f2</span>
+        <span class="ch">Ch6 2.4G</span>
+      </div>
+      <div class="row">
+        <span class="time">14:22:06</span>
+        <span class="ms">14 ms</span>
+        <span class="bssid">b8:27:eb:…:f2</span>
+        <span class="ch">Ch6 2.4G</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Who it's for -->
+<section class="audience">
+  <div class="section-inner">
+    <div class="section-label">Who it's for</div>
+    <h2>Built for anyone who depends on their connection</h2>
+    <div class="audience-grid">
+      <div class="audience-card">
+        <div class="icon">💼</div>
+        <h3>Remote Workers</h3>
+        <p>Know immediately when your network is the reason a call sounds bad.</p>
+      </div>
+      <div class="audience-card">
+        <div class="icon">🎮</div>
+        <h3>Gamers</h3>
+        <p>Correlate lag spikes with latency data and packet loss in real time.</p>
+      </div>
+      <div class="audience-card">
+        <div class="icon">🏠</div>
+        <h3>Home Networks</h3>
+        <p>Find dead zones, weak coverage, and competing channels around your home.</p>
+      </div>
+      <div class="audience-card">
+        <div class="icon">🖧</div>
+        <h3>IT &amp; Network Admins</h3>
+        <p>Gather per-second BSSID, channel, and RSSI data to diagnose coverage gaps.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Privacy -->
+<section class="privacy">
+  <div class="section-inner">
+    <div class="section-label">Privacy</div>
+    <h2>Your data stays on your Mac</h2>
+    <p class="lead">WiFi Scout was designed with privacy as a default, not an afterthought.</p>
+    <div class="privacy-points">
+      <div class="privacy-point">
+        <span class="check">✓</span>
+        <p>No account required</p>
+      </div>
+      <div class="privacy-point">
+        <span class="check">✓</span>
+        <p>No cloud sync or external servers</p>
+      </div>
+      <div class="privacy-point">
+        <span class="check">✓</span>
+        <p>All data stored locally in a private SQLite database</p>
+      </div>
+      <div class="privacy-point">
+        <span class="check">✓</span>
+        <p>Location permission used only to identify your access point — never recorded</p>
+      </div>
+      <div class="privacy-point">
+        <span class="check">✓</span>
+        <p>Delete everything instantly with Reset DB</p>
+      </div>
+      <div class="privacy-point">
+        <span class="check">✓</span>
+        <p>No ads, no tracking, no subscription</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Start watching your Wi-Fi</h2>
+  <p>Free on the Mac App Store. Requires macOS 13 or later.</p>
+  <a class="badge" href="#"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-mac-app-store.svg" alt="Download on the Mac App Store"></a>
+</section>
+
+<footer>
+  &copy; 2026 Bent Boolean &nbsp;·&nbsp; <a href="/wifiscout/support.html">Support</a> &nbsp;·&nbsp; <a href="mailto:support@bentboolean.com">Contact</a>
+</footer>
+
+</body>
+</html>

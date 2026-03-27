@@ -24,6 +24,7 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
 
     private(set) var pings: [PingResult] = []
     private(set) var publicIP: String = "—"
+    private(set) var privateIP: String = "—"
     private(set) var isp: String = "—"
 
     // WiFi — SSID/BSSID via CoreWLAN (requires wifi-info entitlement)
@@ -43,6 +44,21 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
 
     private var pingTimer: Timer?
     private var infoTimer: Timer?
+    private var insertCount = 0
+
+    var pingHost: String {
+        let h = UserDefaults.standard.string(forKey: "pingHost") ?? ""
+        return h.isEmpty ? "1.1.1.1" : h
+    }
+    var pingInterval: Double {
+        let v = UserDefaults.standard.double(forKey: "pingInterval")
+        return v >= 0.5 ? v : 1.0
+    }
+    // nil = unlimited
+    var maxStoredPings: Int? {
+        let v = UserDefaults.standard.integer(forKey: "maxStoredPings")
+        return v > 0 ? v : nil
+    }
 
     // Dedicated serial queue for all ping NWConnections
     private let pingQueue = DispatchQueue(label: "com.netstatbar.ping", qos: .utility)
@@ -98,8 +114,23 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
         let ispName = isp
         let ts      = Date().timeIntervalSince1970
 
+        insertCount += 1
+        let shouldPrune = insertCount % 100 == 0
+        let limit = maxStoredPings
+
         dbQueue.async { [weak self] in
             guard let self, let db = self.db else { return }
+
+            if shouldPrune, let limit {
+                let prune = """
+                    DELETE FROM measurements
+                    WHERE rowid NOT IN (
+                        SELECT rowid FROM measurements ORDER BY timestamp DESC LIMIT \(limit)
+                    )
+                    """
+                sqlite3_exec(db, prune, nil, nil, nil)
+            }
+
             let sql = """
                 INSERT INTO measurements
                     (timestamp, latency_ms, ssid, bssid, rssi, channel, channel_band, channel_width, public_ip, isp)
@@ -132,12 +163,20 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
         requestLocationPermission()
         doPing()
         fetchNetworkInfo()
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        pingTimer = Timer.scheduledTimer(withTimeInterval: pingInterval, repeats: true) { [weak self] _ in
             self?.doPing()
         }
         infoTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             self?.fetchNetworkInfo()
         }
+    }
+
+    func restartTimers() {
+        pingTimer?.invalidate()
+        pingTimer = Timer.scheduledTimer(withTimeInterval: pingInterval, repeats: true) { [weak self] _ in
+            self?.doPing()
+        }
+        doPing()
     }
 
     // MARK: – Location permission
@@ -171,7 +210,32 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
 
     // MARK: – WiFi (called on main thread from doPing every second)
 
+    private func localIPForInterface(_ name: String) -> String {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0 else { return "—" }
+        defer { freeifaddrs(ifaddr) }
+        var ptr = ifaddr
+        while let ifa = ptr?.pointee {
+            if ifa.ifa_addr.pointee.sa_family == UInt8(AF_INET),
+               String(cString: ifa.ifa_name) == name {
+                var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                var addr = ifa.ifa_addr.pointee
+                let result: String = withUnsafePointer(to: &addr) {
+                    $0.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { sin in
+                        var sinAddr = sin.pointee.sin_addr
+                        inet_ntop(AF_INET, &sinAddr, &buf, socklen_t(INET_ADDRSTRLEN))
+                        return String(cString: buf)
+                    }
+                }
+                return result
+            }
+            ptr = ifa.ifa_next
+        }
+        return "—"
+    }
+
     private func readWiFiInfo() {
+        privateIP = localIPForInterface(activeWiFiInterface)
         let iface = CWWiFiClient.shared().interface(withName: activeWiFiInterface)
         wifiSSID  = iface?.ssid() ?? "—"
         wifiBSSID = iface?.bssid() ?? "—"
@@ -207,7 +271,7 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
     private func doPing() {
         readWiFiInfo()   // main thread — safe for CoreWLAN
 
-        let connection = NWConnection(host: "1.1.1.1", port: 80, using: .tcp)
+        let connection = NWConnection(host: NWEndpoint.Host(pingHost), port: 80, using: .tcp)
         let start = Date()
         var done = false   // guarded by pingQueue (serial)
 
@@ -281,7 +345,7 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
 
     // MARK: – Export
 
-    func exportTSV() -> String {
+    func exportTSV(limit: Int? = nil) -> String {
         let header = "timestamp\tlatency_ms\tssid\tbssid\trssi\tchannel\tchannel_band\tchannel_width\tpublic_ip\tisp"
         var rows = [header]
 
@@ -294,7 +358,14 @@ class NetworkMonitor: NSObject, CLLocationManagerDelegate {
 
         dbQueue.sync {
             guard let db = self.db else { return }
-            let sql = "SELECT timestamp, latency_ms, ssid, bssid, rssi, channel, channel_band, channel_width, public_ip, isp FROM measurements ORDER BY timestamp"
+            // Fetch the most recent `limit` rows (or all), then return in chronological order
+            let limitClause = limit.map { "LIMIT \($0)" } ?? ""
+            let sql = """
+                SELECT timestamp, latency_ms, ssid, bssid, rssi, channel, channel_band, channel_width, public_ip, isp
+                FROM (
+                    SELECT * FROM measurements ORDER BY timestamp DESC \(limitClause)
+                ) ORDER BY timestamp ASC
+                """
             var stmt: OpaquePointer?
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
             defer { sqlite3_finalize(stmt) }

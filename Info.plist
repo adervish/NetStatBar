@@ -4,14 +4,26 @@
 <dict>
     <key>CFBundleName</key>
     <string>NetStatBar</string>
+    <key>CFBundleDisplayName</key>
+    <string>NetStatBar</string>
+    <key>CFBundleExecutable</key>
+    <string>NetStatBar</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.acd.netstatbar</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>4</string>
     <key>CFBundleShortVersionString</key>
     <string>1.2</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>LSUIElement</key>

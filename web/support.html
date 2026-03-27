@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Scout – Support</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b1a3e;
+    color: #e8edf8;
+    line-height: 1.7;
+  }
+  a { color: #5ba4f5; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header {
+    background: linear-gradient(160deg, #0d1f52 0%, #1a3a8f 100%);
+    padding: 48px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  header img {
+    width: 80px; height: 80px;
+    border-radius: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+  header p { color: #8fabd4; margin-top: 6px; font-size: 1.05rem; }
+
+  main {
+    max-width: 740px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 40px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  h2:first-child { margin-top: 0; }
+
+  p { color: #b8c8e8; margin-bottom: 12px; }
+
+  ul, ol {
+    color: #b8c8e8;
+    padding-left: 24px;
+    margin-bottom: 12px;
+  }
+  li { margin-bottom: 6px; }
+
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .card strong { color: #fff; display: block; margin-bottom: 4px; }
+
+  .faq-q {
+    color: #fff;
+    font-weight: 600;
+    margin: 24px 0 6px;
+  }
+
+  .contact-box {
+    background: linear-gradient(135deg, rgba(91,164,245,0.12), rgba(91,164,245,0.04));
+    border: 1px solid rgba(91,164,245,0.25);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    margin-top: 48px;
+  }
+  .contact-box h2 { border: none; margin: 0 0 8px; }
+  .contact-box p { margin-bottom: 16px; }
+  .btn {
+    display: inline-block;
+    background: #3b82f6;
+    color: #fff;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #2563eb; text-decoration: none; }
+
+  footer {
+    text-align: center;
+    padding: 32px 24px;
+    color: #4a6080;
+    font-size: 0.85rem;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>WiFi Scout</h1>
+  <p>Support &amp; Help</p>
+</header>
+
+<main>
+
+  <h2>Getting Started</h2>
+  <p>WiFi Scout runs entirely in your menu bar — there is no main window to open. After launching the app, look for the colored dot in the top-right corner of your screen next to the clock.</p>
+  <ul>
+    <li><strong>Green dot</strong> — your connection is healthy</li>
+    <li><strong>Yellow dot</strong> — latency is elevated</li>
+    <li><strong>Red dot</strong> — high latency or packet loss detected</li>
+  </ul>
+  <p>Click the dot to open the dashboard showing your public IP, ISP, latency, packet loss, and full Wi-Fi details.</p>
+
+  <h2>Granting Location Permission</h2>
+  <p>WiFi Scout asks for Location permission on first launch. This is required by macOS to read the BSSID (the unique identifier) of your Wi-Fi access point. Without it, SSID and BSSID will show as "—".</p>
+  <ol>
+    <li>When the permission prompt appears, click <strong>Allow</strong></li>
+    <li>If you missed it, open <strong>System Settings → Privacy &amp; Security → Location Services</strong></li>
+    <li>Find <strong>WiFi Scout</strong> in the list and set it to <strong>While Using</strong></li>
+  </ol>
+  <p>Your location is never recorded or transmitted. The permission is used solely to identify your Wi-Fi access point.</p>
+
+  <h2>Understanding the Ping History</h2>
+  <p>Click the menu bar dot, then hover over <strong>Last 10 Pings</strong> to see a graph and timestamped history of recent measurements. Each row shows:</p>
+  <div class="card">
+    <strong>Time</strong>When the measurement was taken (HH:MM:SS)
+  </div>
+  <div class="card">
+    <strong>Latency</strong>Round-trip time to Cloudflare's 1.1.1.1 server in milliseconds. Bold red indicates high latency or a timeout.
+  </div>
+  <div class="card">
+    <strong>BSSID</strong>The MAC address of your access point. Shown in bold when it changes, indicating your Mac roamed to a different access point.
+  </div>
+  <div class="card">
+    <strong>Channel &amp; Band</strong>The Wi-Fi channel number and frequency band (2.4 GHz, 5 GHz, or 6 GHz) in use at that moment.
+  </div>
+
+  <h2>Exporting Your Data</h2>
+  <p>All measurements are stored in a private SQLite database on your Mac. To export:</p>
+  <ol>
+    <li>Click the menu bar dot</li>
+    <li>Click <strong>Export Data…</strong></li>
+    <li>Your full measurement history is copied to the clipboard as a tab-separated file</li>
+    <li>Paste into Excel, Numbers, or Google Sheets for analysis</li>
+  </ol>
+  <p>The export includes timestamp, latency, SSID, BSSID, RSSI, channel, band, channel width, public IP, and ISP for every recorded measurement.</p>
+
+  <h2>Resetting the Database</h2>
+  <p>To delete all recorded measurements, click the menu bar dot and choose <strong>Reset DB…</strong>. You will be asked to confirm before any data is deleted. This action cannot be undone.</p>
+
+  <h2>Frequently Asked Questions</h2>
+
+  <p class="faq-q">Why does the app need Location permission?</p>
+  <p>Apple requires Location permission to access the BSSID of a Wi-Fi access point on macOS. This is a privacy protection built into the OS — the same restriction applies to all apps. WiFi Scout uses this only to read your access point identifier and never records or transmits your location.</p>
+
+  <p class="faq-q">Where is my data stored?</p>
+  <p>All data is stored locally in a SQLite database inside the app's sandbox container at:<br>
+  <code style="color:#8fabd4; font-size:0.88rem;">~/Library/Containers/com.acd.netstatbar/Data/Library/Application Support/NetStatBar/measurements.db</code></p>
+
+  <p class="faq-q">How is latency measured?</p>
+  <p>WiFi Scout measures the time to complete a TCP connection to Cloudflare's 1.1.1.1 server. This is an accurate real-world latency measurement to a nearby, well-connected server. A measurement is recorded once per second.</p>
+
+  <p class="faq-q">What does it mean when the BSSID changes?</p>
+  <p>Each physical access point has a unique BSSID. When the BSSID in the ping history changes, your Mac has roamed — it switched from one access point to another. This is normal in mesh networks, but if it happens frequently or coincides with latency spikes, it may indicate poor Wi-Fi coverage in that area.</p>
+
+  <p class="faq-q">Why does my SSID or BSSID show "—"?</p>
+  <p>Location permission has not been granted. Open System Settings → Privacy &amp; Security → Location Services and enable WiFi Scout.</p>
+
+  <p class="faq-q">The dot disappeared from my menu bar</p>
+  <p>macOS can hide menu bar items when space is limited. Try closing other menu bar apps, or hold ⌘ and drag the dot to reposition it.</p>
+
+  <div class="contact-box">
+    <h2>Still need help?</h2>
+    <p>Send an email and we'll get back to you as soon as possible.</p>
+    <a class="btn" href="mailto:support@bentboolean.com">Contact Support</a>
+  </div>
+
+</main>
+
+<footer>
+  &copy; 2026 Bent Boolean. WiFi Scout is not affiliated with Apple Inc.
+</footer>
+
+</body>
+</html>

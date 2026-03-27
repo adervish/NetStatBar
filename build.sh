@@ -7,10 +7,11 @@ set -e
 
 APP="NetStatBar.app"
 BINARY="NetStatBar"
-ENTITLEMENTS="Sources/NetStatBar/NetStatBar.entitlements"
+ENTITLEMENTS_DEV="Sources/NetStatBar/NetStatBar-dev.entitlements"
+ENTITLEMENTS_DIST="Sources/NetStatBar/NetStatBar.entitlements"
 
 DEV_CERT="6165F9CED880F5E960F72E0B2FF242A8E899ECAC"           # Apple Development (valid)
-APP_CERT="3rd Party Mac Developer Application: Alexander Derbes (M74Y8C7TSG)"
+APP_CERT="Apple Distribution: Alexander Derbes (M74Y8C7TSG)"
 PKG_CERT="3rd Party Mac Developer Installer: Alexander Derbes (M74Y8C7TSG)"
 
 DEV_PROFILE="NetStatBar_new.provisionprofile"                  # Development profile
@@ -33,9 +34,11 @@ cp "AppIcon.icns"            "$APP/Contents/Resources/"
 if [ "$MODE" = "appstore" ]; then
     PROFILE="$DIST_PROFILE"
     SIGN_CERT="$APP_CERT"
+    ENTITLEMENTS="$ENTITLEMENTS_DIST"
 else
     PROFILE="$DEV_PROFILE"
     SIGN_CERT="$DEV_CERT"
+    ENTITLEMENTS="$ENTITLEMENTS_DEV"
 fi
 
 # Embed provisioning profile
@@ -46,13 +49,11 @@ else
     echo "WARNING: $PROFILE not found."
 fi
 
-echo "Signing ($MODE)..."
-codesign --force --sign "$SIGN_CERT" \
-    --entitlements "$ENTITLEMENTS" \
-    --options runtime \
-    "$APP/Contents/MacOS/$BINARY"
+# Strip quarantine xattr (set by macOS on downloaded files) — App Store rejects it
+xattr -r -d com.apple.quarantine "$APP" 2>/dev/null || true
 
-codesign --force --sign "$SIGN_CERT" \
+echo "Signing ($MODE)..."
+codesign --force --deep --sign "$SIGN_CERT" \
     --entitlements "$ENTITLEMENTS" \
     --options runtime \
     "$APP"
